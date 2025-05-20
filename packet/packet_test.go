@@ -64,3 +64,31 @@ func BenchmarkDecodeEthernetIPv4TCP(b *testing.B) {
 		p.Decoder(data, headerProtocolEthernet)
 	}
 }
+
+func TestDecodeIPv4IPIP(t *testing.T) {
+	// Outer IPv4 header with protocol IPIP encapsulating an inner IPv4/UDP packet
+	data := []byte{
+		0x45, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x40, 0x04, 0x00, 0x00,
+		0xc0, 0xa8, 0x00, 0x01, // src 192.168.0.1
+		0xc0, 0xa8, 0x00, 0x02, // dst 192.168.0.2
+		// Inner IPv4 header
+		0x45, 0x00, 0x00, 0x1c, 0x00, 0x01, 0x00, 0x00, 0x40, 0x11, 0x00, 0x00,
+		0x0a, 0x00, 0x00, 0x01, // src 10.0.0.1
+		0x0a, 0x00, 0x00, 0x02, // dst 10.0.0.2
+		// UDP header
+		0x1f, 0x90, 0x00, 0x50, 0x00, 0x08, 0x00, 0x00,
+	}
+	p := NewPacket()
+	_, err := p.Decoder(data, headerProtocolIPv4)
+	if err != nil {
+		t.Error("unexpected error", err)
+	}
+	ipv4 := p.L3.(IPv4Header)
+	if ipv4.Src != "10.0.0.1" || ipv4.Dst != "10.0.0.2" {
+		t.Errorf("unexpected inner IPs %s -> %s", ipv4.Src, ipv4.Dst)
+	}
+	udp := p.L4.(UDPHeader)
+	if udp.SrcPort != 8080 || udp.DstPort != 80 {
+		t.Errorf("unexpected ports %d -> %d", udp.SrcPort, udp.DstPort)
+	}
+}

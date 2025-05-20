@@ -67,6 +67,9 @@ const (
 	// IANAProtoTCP is IANA Transmission Control number
 	IANAProtoTCP = 6
 
+	// IANAProtoIPIP is IANA IP in IP encapsulation number
+	IANAProtoIPIP = 4
+
 	// IANAProtoUDP is IANA User Datagram number
 	IANAProtoUDP = 17
 
@@ -99,6 +102,25 @@ func (p *Packet) decodeNextLayer() error {
 	}
 
 	switch proto {
+	case IANAProtoIPIP:
+		// decode encapsulated IP header and next layers
+		if len(p.data) == 0 {
+			return errUnknownTransportLayer
+		}
+		ver := int(p.data[0] >> 4)
+		var err error
+		if ver == 4 {
+			err = p.decodeIPv4Header()
+		} else if ver == 6 {
+			err = p.decodeIPv6Header()
+		} else {
+			err = errUnknownL3Protocol
+		}
+		if err != nil {
+			return err
+		}
+
+		return p.decodeNextLayer()
 	case IANAProtoICMP, IANAProtoIPv6ICMP:
 		icmp, err := decodeICMP(p.data)
 		if err != nil {
